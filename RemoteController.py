@@ -6,12 +6,17 @@ import numpy as np
 import cv2
 import tellopy
 
+import tensorflow as tf
+from tensorflow import keras
+
+
 vidOut = None    
 
 stop_cam = False # Stop flag
 cam_error = None # Error message can view or raise()
 loopback = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 #loopback.bind(('127.0.0.123',1234))
+model = None
 
 prev_flight_data = None
 
@@ -52,6 +57,14 @@ def handleFileReceived(event, sender, data):
     path = 'tello' + str(int(time.time())) + '.jpeg'
     with open(path, 'wb') as fd:
         fd.write(data)
+
+def loadModel():
+    print("inside load model")
+    global model 
+    model = tf.keras.models.load_model('./Models/Red-Sign')
+    print("model loaded")
+    
+
 drone.subscribe(drone.EVENT_FILE_RECEIVED, handleFileReceived)
 drone.subscribe(drone.EVENT_FLIGHT_DATA, flightDataHandler)
 
@@ -102,6 +115,9 @@ try:
                 if e.key == pygame.K_a:
                     print("--a key pressed")
                     drone.counter_clockwise(speed)
+                if e.key == pygame.K_l:
+                    print("--l key pressed")
+                    loadModel()
             elif e.type == pygame.KEYUP:
                 if e.key == pygame.K_UP:
                     drone.forward(0)
@@ -123,11 +139,21 @@ try:
                     
         try:
             frame = cv2.cvtColor(vidOut, cv2.COLOR_BGR2RGB)
+            #print("-------", type(frame))
             frame = np.rot90(frame)
             frame = np.flipud(frame)
             frame = pygame.surfarray.make_surface(frame)
             pygameWindow.fill((0,0,0))
             pygameWindow.blit(frame,(0,0))
+
+            if model is not None:
+                #print("--- do prediction")
+                img = tf.expand_dims(frame, 0)
+                print(img)
+                predictions = model.predict(img)
+                bbox = predictions[0]
+                print(bbox)
+
         except:
             pygameWindow.fill((0,0,255))
             
