@@ -13,6 +13,7 @@ from tensorflow import keras
 WIDTH, HEIGHT = 1280, 720
 FLIGHT_DATA_COLOUR = (0, 255, 0)
 FLIGHT_DATA_TITLE_COLOUR = (255, 255, 255)
+BBOX_COLOUR = (255, 0, 0)
 FPS = 50
 
 
@@ -20,6 +21,7 @@ stop_cam = False # Stop flag
 video_output = None    
 cam_error = None # Error message can view or raise()
 loopback = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+model = None
 
 ###Flight data
 battery_percentage = None
@@ -64,15 +66,50 @@ def flight_data_handler(event, sender, data):
         FLIGHT_DATA_COLOUR = (255, 0, 0)
 
 
+def load_model():
+    print("inside load model")
+    global model 
+    model = tf.keras.models.load_model('./Models/Red-Sign')
+    print("Loaded model - ", type(model))
+
+
 def render_screen(screen):
     screen.fill((0,0,0))
     try:
         frame = cv2.cvtColor(video_output, cv2.COLOR_BGR2RGB)
         frame = np.rot90(frame)
         frame = np.flipud(frame)
+        img_data = frame
+        #print(type(img_data))
         frame = pygame.surfarray.make_surface(frame)
-        #print(frame.shape)
+        #print(img_data.shape)
         screen.blit(frame,(0,0))
+
+        if model is not None:
+            try:
+                v_width, v_height = 960, 720
+                m_width, m_height = 216, 216
+                width_ratio = 1 #v_width/m_width
+                height_ratio = 1 #v_height/m_height
+
+                img_data = cv2.resize(img_data, dsize=(m_width, m_height), interpolation=cv2.INTER_CUBIC)
+                img_data = tf.expand_dims(img_data, 0)
+                #print(img)
+                predictions = model.predict(img_data)
+                bbox = predictions[0]
+                bbox = [bbox[0] * m_width * width_ratio
+                , bbox[1] * m_height * height_ratio
+                , bbox[2] * m_width * width_ratio
+                , bbox[3] * m_height * height_ratio]
+
+                bbox = [int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
+                print(bbox)
+
+                bbox_rect = pygame.Rect(bbox[0], bbox[1], bbox[2], bbox[3])
+                pygame.draw.rect(screen, BBOX_COLOUR, bbox_rect, 1)
+            except Exception as e:
+                print("--error using model", e)
+            
 
         data_x, data_y, data_h = 1000, 40, 30
 
@@ -176,7 +213,7 @@ def main():
                         drone.counter_clockwise(speed)
                     if e.key == pygame.K_l:
                         print("--l key pressed")
-                        #loadModel()
+                        load_model()
                 elif e.type == pygame.KEYUP:
                     if e.key == pygame.K_UP:
                         drone.forward(0)
