@@ -46,10 +46,10 @@ def video_capture():
         cap.release()
         print("Video Stream stopped.")
 
-def videoFrameHandler(event, sender, data):   # Video Frame loopback
+def video_frame_handler(event, sender, data):   # Video Frame loopback
     loopback.sendto(data, ('127.0.0.1',5000)) # Random address
 
-def flightDataHandler(event, sender, data):
+def flight_data_handler(event, sender, data):
     global battery_percentage, altitude, ground_speed, wifi, fly_speed, temperature
 
     battery_percentage = getattr(data, "battery_percentage")
@@ -64,7 +64,7 @@ def flightDataHandler(event, sender, data):
         FLIGHT_DATA_COLOUR = (255, 0, 0)
 
 
-def draw_window(screen):
+def render_screen(screen):
     screen.fill((0,0,0))
     try:
         frame = cv2.cvtColor(video_output, cv2.COLOR_BGR2RGB)
@@ -105,17 +105,19 @@ def draw_window(screen):
         flight_data = FLIGHT_DATA_FONT.render("TEMP: %2d"% temperature, 1, FLIGHT_DATA_COLOUR)
         screen.blit(flight_data, (data_x, data_y))
 
-
     except:
         screen.fill((0,0,255))
     pygame.display.update()
+
 
 def main():
     pygame.init()
     pygame.display.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("TelloBot Pilot")
+    pygame.display.set_caption("TelloBot - Cockpit")
     pygame.font.init()
+
+    speed = 90
 
     global stop_cam
     try:
@@ -125,8 +127,8 @@ def main():
         drone = tellopy.Tello()
         drone.connect()
         drone.start_video()
-        drone.subscribe(drone.EVENT_VIDEO_FRAME, videoFrameHandler)
-        drone.subscribe(drone.EVENT_FLIGHT_DATA, flightDataHandler)
+        drone.subscribe(drone.EVENT_VIDEO_FRAME, video_frame_handler)
+        drone.subscribe(drone.EVENT_FLIGHT_DATA, flight_data_handler)
 
         clock = pygame.time.Clock()
         run = True
@@ -138,7 +140,7 @@ def main():
                     if e.key == pygame.K_SPACE:
                         print("--space key pressed")
                         run = False
-                    """ if e.key == pygame.K_RETURN:
+                    if e.key == pygame.K_RETURN:
                         drone.take_picture()
                     if e.key == pygame.K_z:
                         drone.set_video_mode(not drone.zoom)
@@ -174,9 +176,9 @@ def main():
                         drone.counter_clockwise(speed)
                     if e.key == pygame.K_l:
                         print("--l key pressed")
-                        loadModel() """
+                        #loadModel()
                 elif e.type == pygame.KEYUP:
-                    """ if e.key == pygame.K_UP:
+                    if e.key == pygame.K_UP:
                         drone.forward(0)
                     if e.key == pygame.K_DOWN:
                         drone.backward(0)
@@ -191,26 +193,10 @@ def main():
                     if e.key == pygame.K_d:
                         drone.clockwise(0)
                     if e.key == pygame.K_a:
-                        drone.counter_clockwise(0) """
-                    
-                        
-            #try:
-                #frame = cv2.cvtColor(vidOut, cv2.COLOR_BGR2RGB)
-                #print("-------", type(frame))
-                #frame = np.rot90(frame)
-                #frame = np.flipud(frame)
-                #frame = pygame.surfarray.make_surface(frame)
-                #WIN.fill((0,0,0))
-                #WIN.blit(frame,(0,0))
-                
-            #except:
-                #screen.fill((0,0,255))
+                        drone.counter_clockwise(0)
             
-            draw_window(screen)
+            render_screen(screen)
             clock.tick(FPS)
-            #WIN.fill((0,0,0))
-            #pygame.display.update()
-            #clock.tick(30)
     finally:
         stop_cam = True
         video_thread.join()
