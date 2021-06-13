@@ -1,4 +1,5 @@
 import pygame
+import pygame.font
 import time
 import socket
 import threading
@@ -17,6 +18,7 @@ cam_error = None # Error message can view or raise()
 loopback = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 #loopback.bind(('127.0.0.123',1234))
 model = None
+font = None
 
 prev_flight_data = None
 
@@ -41,6 +43,7 @@ camt.start()
 
 def videoFrameHandler(event, sender, data):   # Video Frame loopback
     loopback.sendto(data,('127.0.0.1',5000)) # Random address
+
 
 drone = tellopy.Tello()
 drone.connect()
@@ -108,7 +111,7 @@ def update_hud(hud, drone, flight_data):
     overlay.fill((0,0,0)) # remove for mplayer overlay mode
     for blit in blits:
         overlay.blit(*blit)
-    pygame.display.get_surface().blit(overlay, (0,0))
+    pygame.display.get_surface().blit(overlay, (1000,0))
     pygame.display.update(overlay.get_rect())
 
 ##############################################
@@ -131,10 +134,17 @@ drone.subscribe(drone.EVENT_FILE_RECEIVED, handleFileReceived)
 drone.subscribe(drone.EVENT_FLIGHT_DATA, flightDataHandler)
 
 pygame.init()
+pygame.display.init()
 pygameWindow = pygame.display.set_mode((1280,720))
 pygame.display.set_caption("YAY!")
+pygame.font.init()
+
 clock = pygame.time.Clock()
 speed = 90
+
+#global font
+font = pygame.font.SysFont("dejavusansmono", 32)
+
 
 try:
     done = False
