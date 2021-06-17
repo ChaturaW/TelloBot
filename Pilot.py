@@ -16,7 +16,6 @@ FLIGHT_DATA_TITLE_COLOUR = (255, 255, 255)
 BBOX_COLOUR = (255, 0, 0)
 FPS = 50
 
-
 stop_cam = False # Stop flag
 video_output = None    
 cam_error = None # Error message can view or raise()
@@ -80,32 +79,38 @@ def render_screen(screen):
         frame = np.rot90(frame)
         frame = np.flipud(frame)
         img_data = frame
-        #print(type(img_data))
+
         frame = pygame.surfarray.make_surface(frame)
-        #print(img_data.shape)
-        screen.blit(frame,(0,0))
+        screen.blit(frame,(0, 0))
 
         if model is not None:
             try:
-                v_width, v_height = 960, 720
                 m_width, m_height = 216, 216
-                width_ratio = 1 #v_width/m_width
-                height_ratio = 1 #v_height/m_height
+                
+                img_data = tf.keras.preprocessing.image.smart_resize(img_data, (m_width, m_height))
 
-                img_data = cv2.resize(img_data, dsize=(m_width, m_height), interpolation=cv2.INTER_CUBIC)
+                #render the detector frame in the right panel
+                d_frame_x, d_frame_y = 1000, 280
+                detector_frame = pygame.surfarray.make_surface(img_data)
+                screen.blit(detector_frame,(d_frame_x, d_frame_y))
+
                 img_data = tf.expand_dims(img_data, 0)
-                #print(img)
                 predictions = model.predict(img_data)
                 bbox = predictions[0]
-                bbox = [bbox[0] * m_width * width_ratio
-                , bbox[1] * m_height * height_ratio
-                , bbox[2] * m_width * width_ratio
-                , bbox[3] * m_height * height_ratio]
+                bbox = [bbox[0] * m_width 
+                , bbox[1] * m_height 
+                , bbox[2] * m_width 
+                , bbox[3] * m_height ]
 
                 bbox = [int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
-                print(bbox)
+                
+                b_width = bbox[3] - bbox[1]
+                b_height = bbox[2] - bbox[0]
 
-                bbox_rect = pygame.Rect(bbox[0], bbox[1], bbox[2], bbox[3])
+                #adjust the bbox cordinates based on the detector frame origin (d_frame_x, d_frame_y)
+                bbox_x, bbox_y = bbox[1] + d_frame_x, bbox[0] + d_frame_y
+
+                bbox_rect = pygame.Rect(bbox_x, bbox_y, b_width, b_height)
                 pygame.draw.rect(screen, BBOX_COLOUR, bbox_rect, 1)
             except Exception as e:
                 print("--error using model", e)
