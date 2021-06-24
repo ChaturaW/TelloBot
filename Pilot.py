@@ -68,7 +68,7 @@ def flight_data_handler(event, sender, data):
 def load_model():
     print("inside load model")
     global model 
-    model = tf.keras.models.load_model('./Models/Red-Sign')
+    model = tf.keras.models.load_model('./Models/Detector')
     print("Loaded model - ", type(model))
 
 
@@ -96,7 +96,7 @@ def render_screen(screen):
 
                 img_data = tf.expand_dims(img_data, 0)
                 predictions = model.predict(img_data)
-                bbox = predictions[0]
+                bbox = predictions[1][0]
                 bbox = [bbox[0] * m_width 
                 , bbox[1] * m_height 
                 , bbox[2] * m_width 

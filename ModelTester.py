@@ -7,11 +7,19 @@ import time
 WIDTH, HEIGHT = 1280, 720
 BBOX_COLOUR = (255, 0, 0)
 YRECT_COLOUR = (255, 255, 0)
+CIRCLE = 0
+NO_CIRCLE = 1
+
+def get_displacement(frame_center, bbox_center):
+    
+    x_axis = bbox_center[0] - frame_center[0]
+    y_axis = bbox_center[1] - frame_center[1]
+    return x_axis, y_axis
 
 def render_screen(screen):
     
     global model 
-    model = tf.keras.models.load_model('./Models/Red-Sign')
+    model = tf.keras.models.load_model('./Models/Detector')
     print("Loaded model - ", type(model))
     clock = pygame.time.Clock()
     run = True
@@ -55,22 +63,46 @@ def render_screen(screen):
             img_data = tf.expand_dims(img_data, 0)
             
             predictions = model.predict(img_data)
-            bbox = predictions[0]
-            bbox = [bbox[0] * m_width #* width_ratio
-            , bbox[1] * m_height #* height_ratio
-            , bbox[2] * m_width #* width_ratio
-            , bbox[3] * m_height] #* height_ratio]
 
-            bbox = [int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
-                    
-            b_width = bbox[3] - bbox[1]
-            b_height = bbox[2] - bbox[0]
+            #class label prediction
+            class_prediction = predictions[0][0]
+            score = tf.nn.softmax(class_prediction)
+            score = tf.math.argmax(score)
+            class_label = int(score)
 
-            bbox_rect = pygame.Rect(bbox[1], bbox[0], b_width, b_height)
-            pygame.draw.rect(screen, BBOX_COLOUR, bbox_rect, 1)
+            if class_label == CIRCLE:
+                #bounding box prediction
+                bbox = predictions[1][0]
+                bbox = [bbox[0] * m_width #* width_ratio
+                , bbox[1] * m_height #* height_ratio
+                , bbox[2] * m_width #* width_ratio
+                , bbox[3] * m_height] #* height_ratio]
 
-            #draw_rect = pygame.Rect(bbox[1] * width_ratio, bbox[0] * height_ratio, 20, 20)
-            #pygame.draw.rect(screen, YRECT_COLOUR, draw_rect)
+                bbox = [int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
+
+                #b_width = bbox[3] - bbox[1]
+                #b_height = bbox[2] - bbox[0]
+
+                frame_center = (m_width/2, m_height/2) 
+                #print(frame_center)
+                
+                x_min, y_min, x_max, y_max = bbox[1], bbox[0], bbox[3], bbox[2]
+                bbox_width = x_max - x_min
+                bbox_height = y_max - y_min
+                
+                bbox_center = (x_min + (bbox_width/2), y_min + (bbox_height/2))
+
+                bbox_rect = pygame.Rect(x_min, y_min, bbox_width, bbox_height)
+                pygame.draw.rect(screen, BBOX_COLOUR, bbox_rect, 1)
+
+                x_axis, y_axis = get_displacement(frame_center, bbox_center)
+                print(x_axis, y_axis)
+                pygame.draw.line(screen, YRECT_COLOUR, frame_center, bbox_center, 1)
+
+                #print(x_axis, y_axis, distance)
+
+                #draw_rect = pygame.Rect(bbox[1] * width_ratio, bbox[0] * height_ratio, 20, 20)
+                #pygame.draw.rect(screen, YRECT_COLOUR, draw_rect)
 
             pygame.display.update()
             if cv.waitKey(1) == ord('q'):
