@@ -6,21 +6,28 @@ import threading
 import numpy as np
 import cv2
 import tellopy
+import autopilot
 
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.python.keras.saving.saved_model.load import load
 
 WIDTH, HEIGHT = 1280, 720
 FLIGHT_DATA_COLOUR = (0, 255, 0)
 FLIGHT_DATA_TITLE_COLOUR = (255, 255, 255)
 BBOX_COLOUR = (255, 0, 0)
+DIRECTION_COLOUR = (255, 255, 0)
 FPS = 50
+CIRCLE = 0
+NO_CIRCLE = 1
 
 stop_cam = False # Stop flag
 video_output = None    
 cam_error = None # Error message can view or raise()
 loopback = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+drone = None
 model = None
+auto_pilot = False
 
 ###Flight data
 battery_percentage = None
@@ -64,12 +71,25 @@ def flight_data_handler(event, sender, data):
     if battery_percentage <= 20:
         FLIGHT_DATA_COLOUR = (255, 0, 0)
 
+def toggle_auto_pilot():
+    global auto_pilot
+    if auto_pilot == False:
+        auto_pilot = True
+    else:
+        auto_pilot = False
+    return auto_pilot
 
 def load_model():
     print("inside load model")
     global model 
     model = tf.keras.models.load_model('./Models/Detector')
     print("Loaded model - ", type(model))
+
+def get_displacement(frame_center, bbox_center):
+    
+    x_axis = bbox_center[0] - frame_center[0]
+    y_axis = bbox_center[1] - frame_center[1]
+    return x_axis, y_axis
 
 
 def render_screen(screen):
@@ -83,7 +103,7 @@ def render_screen(screen):
         frame = pygame.surfarray.make_surface(frame)
         screen.blit(frame,(0, 0))
 
-        if model is not None:
+        if auto_pilot:
             try:
                 m_width, m_height = 216, 216
                 
@@ -96,22 +116,45 @@ def render_screen(screen):
 
                 img_data = tf.expand_dims(img_data, 0)
                 predictions = model.predict(img_data)
-                bbox = predictions[1][0]
-                bbox = [bbox[0] * m_width 
-                , bbox[1] * m_height 
-                , bbox[2] * m_width 
-                , bbox[3] * m_height ]
+                #class label prediction
+                class_prediction = predictions[0][0]
+                score = tf.nn.softmax(class_prediction)
+                score = tf.math.argmax(score)
+                class_label = int(score)
 
-                bbox = [int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
-                
-                b_width = bbox[3] - bbox[1]
-                b_height = bbox[2] - bbox[0]
+                if class_label == CIRCLE:
+                    #bounding box prediction
+                    bbox = predictions[1][0]
+                    bbox = [bbox[0] * m_width #* width_ratio
+                    , bbox[1] * m_height #* height_ratio
+                    , bbox[2] * m_width #* width_ratio
+                    , bbox[3] * m_height] #* height_ratio]
 
-                #adjust the bbox cordinates based on the detector frame origin (d_frame_x, d_frame_y)
-                bbox_x, bbox_y = bbox[1] + d_frame_x, bbox[0] + d_frame_y
+                    bbox = [int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])]
 
-                bbox_rect = pygame.Rect(bbox_x, bbox_y, b_width, b_height)
-                pygame.draw.rect(screen, BBOX_COLOUR, bbox_rect, 1)
+                    #b_width = bbox[3] - bbox[1]
+                    #b_height = bbox[2] - bbox[0]
+
+                    detector_frame_center = (d_frame_x + m_width/2, d_frame_y + m_height/2) 
+                    #print(frame_center)
+                    
+                    x_min, y_min, x_max, y_max = bbox[1], bbox[0], bbox[3], bbox[2]
+                    bbox_width = x_max - x_min
+                    bbox_height = y_max - y_min
+                    bbox_x = d_frame_x + x_min
+                    bbox_y = d_frame_y + y_min
+                    
+                    bbox_center = (bbox_x + (bbox_width/2), bbox_y + (bbox_height/2))
+
+                    bbox_rect = pygame.Rect(bbox_x, bbox_y, bbox_width, bbox_height)
+                    pygame.draw.rect(screen, BBOX_COLOUR, bbox_rect, 1)
+
+                    x_axis, y_axis = get_displacement(detector_frame_center, bbox_center)
+                    print(x_axis, y_axis)
+                    pygame.draw.line(screen, DIRECTION_COLOUR, detector_frame_center, bbox_center, 1)
+
+                    autopilot.fly(x_axis, y_axis, drone)
+
             except Exception as e:
                 print("--error using model", e)
             
@@ -162,6 +205,7 @@ def main():
     speed = 90
 
     global stop_cam
+    global drone
     try:
         video_thread = threading.Thread(None, video_capture) # Start thread
         video_thread.start()
@@ -172,6 +216,7 @@ def main():
         drone.subscribe(drone.EVENT_VIDEO_FRAME, video_frame_handler)
         drone.subscribe(drone.EVENT_FLIGHT_DATA, flight_data_handler)
 
+        load_model()
         clock = pygame.time.Clock()
         run = True
         while run:
@@ -216,9 +261,9 @@ def main():
                     if e.key == pygame.K_a:
                         print("--a key pressed")
                         drone.counter_clockwise(speed)
-                    if e.key == pygame.K_l:
-                        print("--l key pressed")
-                        load_model()
+                    if e.key == pygame.K_r:
+                        print("--r key pressed")
+                        toggle_auto_pilot()
                 elif e.type == pygame.KEYUP:
                     if e.key == pygame.K_UP:
                         drone.forward(0)

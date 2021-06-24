@@ -3,6 +3,7 @@ import cv2 as cv
 import tensorflow as tf
 import pygame
 import time
+import autopilot
 
 WIDTH, HEIGHT = 1280, 720
 BBOX_COLOUR = (255, 0, 0)
@@ -96,13 +97,12 @@ def render_screen(screen):
                 pygame.draw.rect(screen, BBOX_COLOUR, bbox_rect, 1)
 
                 x_axis, y_axis = get_displacement(frame_center, bbox_center)
-                print(x_axis, y_axis)
                 pygame.draw.line(screen, YRECT_COLOUR, frame_center, bbox_center, 1)
 
-                #print(x_axis, y_axis, distance)
-
-                #draw_rect = pygame.Rect(bbox[1] * width_ratio, bbox[0] * height_ratio, 20, 20)
-                #pygame.draw.rect(screen, YRECT_COLOUR, draw_rect)
+                print(x_axis, y_axis)
+                autopilot.fly(x_axis, y_axis, None)
+            else:
+                autopilot.hover()
 
             pygame.display.update()
             if cv.waitKey(1) == ord('q'):
